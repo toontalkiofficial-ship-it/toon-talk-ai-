@@ -230,7 +230,7 @@ class MainActivity : Activity() {
         page.addView(note, matchWrap())
 
         val scroll = ScrollView(this).apply {
-            fillViewport = true
+            isFillViewport = true
             addView(page)
         }
         setContentView(scroll)
