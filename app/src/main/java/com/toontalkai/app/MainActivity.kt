@@ -141,6 +141,13 @@ class MainActivity : Activity() {
             setText(prefs.getString("app_key", "") ?: "")
         }
         page.addView(appKeyInput, matchWrap())
+        val earningsHint = TextView(this).apply {
+            text = "To receive developer earnings, create an App Key at enter.pollinations.ai/keys and enable earnings for it. Without that key, you can still connect and generate using your own Pollinations balance."
+            textSize = 12f
+            setTextColor(Color.rgb(145, 155, 180))
+            setPadding(dp(2), dp(5), dp(2), dp(2))
+        }
+        page.addView(earningsHint, matchWrap())
         connectButton = makeButton("🔗  Connect Pollinations", Color.rgb(37, 126, 103))
         connectButton.setOnClickListener { connectPollinations() }
         page.addView(connectButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)).apply {
