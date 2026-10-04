@@ -52,6 +52,8 @@ class MainActivity : Activity() {
     private lateinit var imageButton: Button
     private lateinit var videoButton: Button
     private lateinit var videoModelSpinner: Spinner
+    private lateinit var imageStyleSpinner: Spinner
+    private lateinit var imageQualitySpinner: Spinner
     private lateinit var saveButton: Button
     private var latestImage: Bitmap? = null
     private var latestVideo: File? = null
@@ -173,6 +175,44 @@ class MainActivity : Activity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         }
         page.addView(promptInput, matchWrap())
+
+        val imageOptionsTitle = label("Image style")
+        imageOptionsTitle.setPadding(0, dp(14), 0, dp(6))
+        page.addView(imageOptionsTitle, matchWrap())
+        imageStyleSpinner = Spinner(this).apply {
+            val choices = listOf(
+                "Balanced / Normal",
+                "Photorealistic",
+                "3D Cartoon",
+                "Anime",
+                "Watercolor / Painting",
+                "Cinematic",
+                "Fantasy",
+                "Kids Storybook"
+            )
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, choices).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            setBackgroundColor(Color.rgb(31, 39, 66))
+        }
+        page.addView(imageStyleSpinner, matchWrap())
+
+        val imageQualityTitle = label("Image quality")
+        imageQualityTitle.setPadding(0, dp(10), 0, dp(6))
+        page.addView(imageQualityTitle, matchWrap())
+        imageQualitySpinner = Spinner(this).apply {
+            val choices = listOf(
+                "Normal (1024 × 1024)",
+                "High detail (1536 × 1536; may cost more)"
+            )
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, choices).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            setBackgroundColor(Color.rgb(31, 39, 66))
+        }
+        page.addView(imageQualitySpinner, matchWrap())
 
         val videoModelTitle = label("Video model (lower-cost option first)")
         videoModelTitle.setPadding(0, dp(14), 0, dp(6))
@@ -434,8 +474,19 @@ class MainActivity : Activity() {
         setBusy(true, "Generating image… This may take a little while.")
         worker.execute {
             try {
-                val prompt = URLEncoder.encode(inputs.first, "UTF-8").replace("+", "%20")
-                val url = URL("https://gen.pollinations.ai/image/$prompt?model=flux&width=1024&height=1024&safe=true")
+                val styleInstruction = when (imageStyleSpinner.selectedItemPosition) {
+                    1 -> "photorealistic photography, natural textures, realistic lighting"
+                    2 -> "high-quality 3D cartoon animation style, expressive character, polished materials"
+                    3 -> "anime illustration style, clean line art, expressive eyes, rich colors"
+                    4 -> "watercolor and hand-painted illustration, visible brush texture"
+                    5 -> "cinematic composition, dramatic lighting, film still, detailed atmosphere"
+                    6 -> "imaginative fantasy art, magical atmosphere, intricate details"
+                    7 -> "friendly children's storybook illustration, warm colors, gentle shapes"
+                    else -> "balanced high-quality illustration, clear details, natural colors"
+                }
+                val prompt = URLEncoder.encode(inputs.first + ", " + styleInstruction, "UTF-8").replace("+", "%20")
+                val dimension = if (imageQualitySpinner.selectedItemPosition == 1) 1536 else 1024
+                val url = URL("https://gen.pollinations.ai/image/$prompt?model=flux&width=$dimension&height=$dimension&safe=true")
                 val connection = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 30000
