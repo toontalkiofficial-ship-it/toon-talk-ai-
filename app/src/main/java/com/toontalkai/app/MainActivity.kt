@@ -530,6 +530,10 @@ class MainActivity : Activity() {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Toon Talk AI")
                             put(MediaStore.Images.Media.IS_PENDING, 1)
+                        } else {
+                            val directory = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Toon Talk AI")
+                            if (!directory.exists() && !directory.mkdirs()) throw IOException("Could not create the Gallery folder.")
+                            put(MediaStore.Images.Media.DATA, File(directory, name).absolutePath)
                         }
                     }
                     val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
@@ -564,6 +568,10 @@ class MainActivity : Activity() {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/Toon Talk AI")
                             put(MediaStore.Video.Media.IS_PENDING, 1)
+                        } else {
+                            val directory = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Toon Talk AI")
+                            if (!directory.exists() && !directory.mkdirs()) throw IOException("Could not create the Gallery folder.")
+                            put(MediaStore.Video.Media.DATA, File(directory, name).absolutePath)
                         }
                     }
                     val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
