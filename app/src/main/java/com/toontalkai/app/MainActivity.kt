@@ -23,6 +23,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
+import android.widget.Spinner
+import android.widget.ArrayAdapter
 import android.widget.TextView
 import android.widget.VideoView
 import android.widget.MediaController
@@ -49,6 +51,7 @@ class MainActivity : Activity() {
     private lateinit var videoPreview: VideoView
     private lateinit var imageButton: Button
     private lateinit var videoButton: Button
+    private lateinit var videoModelSpinner: Spinner
     private lateinit var saveButton: Button
     private var latestImage: Bitmap? = null
     private var latestVideo: File? = null
@@ -170,6 +173,31 @@ class MainActivity : Activity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         }
         page.addView(promptInput, matchWrap())
+
+        val videoModelTitle = label("Video model (lower-cost option first)")
+        videoModelTitle.setPadding(0, dp(14), 0, dp(6))
+        page.addView(videoModelTitle, matchWrap())
+        videoModelSpinner = Spinner(this).apply {
+            val choices = listOf(
+                "HeyGen Video 1 (check current price)",
+                "Seedance 2.0 Fast (check current price)",
+                "Wan 2.2 Fast (check current price)",
+                "Veo 3.1 Fast (may cost more)"
+            )
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, choices).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            setBackgroundColor(Color.rgb(31, 39, 66))
+        }
+        page.addView(videoModelSpinner, matchWrap())
+        val videoCostHint = TextView(this).apply {
+            text = "Prices can change. Your current 0.0802 Quest Pollen may be insufficient for any video model. Check live pricing before generating."
+            textSize = 12f
+            setTextColor(Color.rgb(145, 155, 180))
+            setPadding(dp(2), dp(5), dp(2), dp(2))
+        }
+        page.addView(videoCostHint, matchWrap())
 
         imageButton = makeButton("✨  Generate Image", Color.rgb(105, 79, 202))
         imageButton.setOnClickListener { generateImage() }
@@ -453,7 +481,13 @@ class MainActivity : Activity() {
         worker.execute {
             try {
                 val prompt = URLEncoder.encode(inputs.first, "UTF-8").replace("+", "%20")
-                val url = URL("https://gen.pollinations.ai/video/$prompt?model=google%2Fveo-3.1-fast&duration=4")
+                val selectedModel = when (videoModelSpinner.selectedItemPosition) {
+                    0 -> "heygen%2Fvideo-1"
+                    1 -> "bytedance%2Fseedance-2.0-fast"
+                    2 -> "alibaba%2Fwan-2.2-fast"
+                    else -> "google%2Fveo-3.1-fast"
+                }
+                val url = URL("https://gen.pollinations.ai/video/$prompt?model=$selectedModel&duration=4")
                 val connection = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 30000
