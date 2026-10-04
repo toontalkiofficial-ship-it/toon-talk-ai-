@@ -34,12 +34,15 @@ import java.net.URL
 import java.net.URLEncoder
 import java.io.IOException
 import java.util.concurrent.Executors
+import org.json.JSONObject
 
 class MainActivity : Activity() {
     private val worker = Executors.newSingleThreadExecutor()
     private val prefs by lazy { getSharedPreferences("toon_talk_settings", MODE_PRIVATE) }
     private lateinit var promptInput: EditText
     private lateinit var keyInput: EditText
+    private lateinit var appKeyInput: EditText
+    private lateinit var connectButton: Button
     private lateinit var statusText: TextView
     private lateinit var progress: ProgressBar
     private lateinit var imagePreview: ImageView
@@ -122,6 +125,27 @@ class MainActivity : Activity() {
         keyActions.addView(keyGap, LinearLayout.LayoutParams(dp(8), 1))
         keyActions.addView(getKeyButton, LinearLayout.LayoutParams(0, dp(48), 1f))
         page.addView(keyActions, matchWrap())
+
+        val appKeyTitle = label("App Key for sign-in / developer attribution (optional)")
+        appKeyTitle.setPadding(0, dp(14), 0, dp(6))
+        page.addView(appKeyTitle, matchWrap())
+        appKeyInput = EditText(this).apply {
+            hint = "App Key starts with pk_ (if you created one)"
+            textSize = 14f
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(145, 155, 180))
+            setPadding(dp(13), dp(12), dp(13), dp(12))
+            setBackgroundColor(Color.rgb(31, 39, 66))
+            setText(prefs.getString("app_key", "") ?: "")
+        }
+        page.addView(appKeyInput, matchWrap())
+        connectButton = makeButton("🔗  Connect Pollinations", Color.rgb(37, 126, 103))
+        connectButton.setOnClickListener { connectPollinations() }
+        page.addView(connectButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)).apply {
+            topMargin = dp(8)
+        })
 
         val promptTitle = label("Describe your scene")
         promptTitle.setPadding(0, dp(20), 0, dp(7))
@@ -260,9 +284,109 @@ class MainActivity : Activity() {
         progress.visibility = if (busy) View.VISIBLE else View.GONE
         imageButton.isEnabled = !busy
         videoButton.isEnabled = !busy
+        connectButton.isEnabled = !busy
         imageButton.alpha = if (busy) 0.55f else 1f
         videoButton.alpha = if (busy) 0.55f else 1f
         statusText.text = message
+    }
+
+    private fun connectPollinations() {
+        val appKey = appKeyInput.text.toString().trim()
+        if (appKey.isNotBlank() && !appKey.startsWith("pk_")) {
+            statusText.text = "The App Key should start with pk_. Leave it blank if you do not have one."
+            return
+        }
+        if (appKey.isNotBlank()) prefs.edit().putString("app_key", appKey).apply()
+        hideKeyboard()
+        setBusy(true, "Starting secure Pollinations sign-in…")
+        worker.execute {
+            try {
+                val body = JSONObject().apply {
+                    if (appKey.isNotBlank()) put("client_id", appKey)
+                }.toString()
+                val startConnection = (URL("https://enter.pollinations.ai/api/device/code").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 20000
+                    readTimeout = 30000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Accept", "application/json")
+                }
+                val startBody: String
+                try {
+                    startConnection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                    val code = startConnection.responseCode
+                    val stream = if (code in 200..299) startConnection.inputStream else startConnection.errorStream
+                    startBody = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                    if (code !in 200..299) throw IOException("Could not start sign-in (HTTP $code): $startBody")
+                } finally {
+                    startConnection.disconnect()
+                }
+                val startJson = JSONObject(startBody)
+                val deviceCode = startJson.optString("device_code")
+                val userCode = startJson.optString("user_code")
+                if (deviceCode.isBlank() || userCode.isBlank()) throw IOException("Pollinations did not return a sign-in code. Please try again.")
+                val verificationUrl = startJson.optString("verification_uri_complete").takeIf { it.isNotBlank() }
+                    ?: ("https://enter.pollinations.ai/device?user_code=" + URLEncoder.encode(userCode, "UTF-8"))
+                runOnUiThread {
+                    statusText.text = "Sign-in code: $userCode\nThe browser is opening. Approve the request there; keep this app open."
+                    try {
+                        startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(verificationUrl)))
+                    } catch (_: Exception) {
+                        statusText.text = "Open https://enter.pollinations.ai/device and enter code $userCode"
+                    }
+                }
+                val deadline = System.currentTimeMillis() + 15 * 60 * 1000
+                var approvedKey: String? = null
+                while (System.currentTimeMillis() < deadline && approvedKey == null) {
+                    Thread.sleep(5000)
+                    val tokenConnection = (URL("https://enter.pollinations.ai/api/device/token").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 15000
+                        readTimeout = 20000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                        setRequestProperty("Accept", "application/json")
+                    }
+                    val tokenBody: String
+                    val tokenCode: Int
+                    try {
+                        tokenConnection.outputStream.use {
+                            it.write(JSONObject().put("device_code", deviceCode).toString().toByteArray(Charsets.UTF_8))
+                        }
+                        tokenCode = tokenConnection.responseCode
+                        val stream = if (tokenCode in 200..299) tokenConnection.inputStream else tokenConnection.errorStream
+                        tokenBody = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                    } finally {
+                        tokenConnection.disconnect()
+                    }
+                    val tokenJson = try { JSONObject(tokenBody) } catch (_: Exception) { JSONObject() }
+                    val accessToken = tokenJson.optString("access_token")
+                    if (tokenCode in 200..299 && accessToken.startsWith("sk_")) {
+                        approvedKey = accessToken
+                    } else {
+                        val error = tokenJson.optString("error")
+                        when (error) {
+                            "authorization_pending" -> runOnUiThread { statusText.text = "Waiting for approval… Code: $userCode. Approve in the browser, then return here." }
+                            "slow_down" -> Thread.sleep(5000)
+                            "expired_token", "access_denied" -> throw IOException("Pollinations sign-in $error. Tap Connect Pollinations to try again.")
+                            else -> if (tokenCode !in 200..299 && error.isBlank()) {
+                                throw IOException("Sign-in check failed (HTTP $tokenCode): $tokenBody")
+                            }
+                        }
+                    }
+                }
+                val finalKey = approvedKey ?: throw IOException("Sign-in timed out. Please tap Connect Pollinations and try again.")
+                prefs.edit().putString("api_key", finalKey).apply()
+                runOnUiThread {
+                    keyInput.setText(finalKey)
+                    setBusy(false, "Pollinations connected! You can now generate images and videos.")
+                    Toast.makeText(this, "Pollinations connected", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                runOnUiThread { setBusy(false, "Connection failed: ${e.message ?: "Please try again."}") }
+            }
+        }
     }
 
     private fun generateImage() {
