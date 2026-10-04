@@ -281,7 +281,7 @@ class MainActivity : Activity() {
                     requestMethod = "GET"
                     connectTimeout = 30000
                     readTimeout = 180000
-                    setRequestProperty("Authorization", "Bearer \${inputs.second}")
+                    setRequestProperty("Authorization", "Bearer ${inputs.second}")
                     setRequestProperty("Accept", "image/*")
                 }
                 try {
@@ -327,7 +327,7 @@ class MainActivity : Activity() {
                     requestMethod = "GET"
                     connectTimeout = 30000
                     readTimeout = 300000
-                    setRequestProperty("Authorization", "Bearer \${inputs.second}")
+                    setRequestProperty("Authorization", "Bearer ${inputs.second}")
                     setRequestProperty("Accept", "video/mp4,application/octet-stream")
                 }
                 try {
@@ -335,7 +335,7 @@ class MainActivity : Activity() {
                     if (code !in 200..299) throw IOException(readApiError(connection, code))
                     val type = connection.contentType ?: ""
                     if (type.contains("json", true) || type.startsWith("text/")) throw IOException(connection.inputStream.bufferedReader().use { it.readText().take(700) })
-                    val file = File(cacheDir, "toon_talk_\${System.currentTimeMillis()}.mp4")
+                    val file = File(cacheDir, "toon_talk_${System.currentTimeMillis()}.mp4")
                     connection.inputStream.use { input -> FileOutputStream(file).use { output -> input.copyTo(output) } }
                     if (!file.exists() || file.length() < 1024) throw IOException("The video response was empty. Please try again.")
                     runOnUiThread {
@@ -392,7 +392,7 @@ class MainActivity : Activity() {
                     return
                 }
                 saveMedia("image") {
-                    val name = "ToonTalkAI_\${System.currentTimeMillis()}.png"
+                    val name = "ToonTalkAI_${System.currentTimeMillis()}.png"
                     val values = ContentValues().apply {
                         put(MediaStore.Images.Media.DISPLAY_NAME, name)
                         put(MediaStore.Images.Media.MIME_TYPE, "image/png")
@@ -426,7 +426,7 @@ class MainActivity : Activity() {
                     return
                 }
                 saveMedia("video") {
-                    val name = "ToonTalkAI_\${System.currentTimeMillis()}.mp4"
+                    val name = "ToonTalkAI_${System.currentTimeMillis()}.mp4"
                     val values = ContentValues().apply {
                         put(MediaStore.Video.Media.DISPLAY_NAME, name)
                         put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
@@ -468,7 +468,7 @@ class MainActivity : Activity() {
             statusText.text = "Saved to your Gallery: $uri"
             Toast.makeText(this, "Saved to Gallery", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
-            statusText.text = "Could not save to Gallery: \${e.message}"
+            statusText.text = "Could not save to Gallery: ${e.message}"
         }
     }
 
